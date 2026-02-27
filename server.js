@@ -20,12 +20,32 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(morgan('dev')); 
  
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL 
-    : '*',
-  credentials: true
-}));
+const allowedOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin(origin, callback) {
+    // Allow non-browser clients (no Origin header)
+    if (!origin) return callback(null, true);
+
+    // In production, allow configured frontends; if missing, allow to avoid accidental lockout
+    if (process.env.NODE_ENV === 'production') {
+      if (!allowedOrigins.length || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    }
+
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
  
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
